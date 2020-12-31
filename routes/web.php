@@ -20,6 +20,7 @@ $router->get('/minecraft/getPlayersData', 'MinecraftController@getPlayersData');
 
 $router->get('/minecraft/syncMinecraft', 'MinecraftController@syncMinecraft');
 $router->get('/minecraft/syncTelegram', 'MinecraftController@syncTelegram');
+$router->get('/minecraft/syncDiscord', 'MinecraftController@syncDiscord');
 
 $router->get('/test', 'TestController@index');
 $router->get('/test/connectWebsocket', 'TestController@connectWebsocket');
