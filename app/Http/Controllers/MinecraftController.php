@@ -7,6 +7,8 @@ use xPaw\MinecraftPingException;
 use xPaw\MinecraftQuery;
 use xPaw\MinecraftQueryException;
 
+use RestCord\DiscordClient;
+
 use GuzzleHttp\Client;
 
 use DB;
@@ -16,6 +18,101 @@ class MinecraftController extends Controller
     function index()
     {
         return ['eyyo' => 'this is index'];
+    }
+
+    function syncDiscord()
+    {
+        DB::table('last_sync')->where('id', 3)->update([
+            'at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $minecraftDatas = DB::table('active_user')->where('id_last_sync', 1)->get();
+        $discordDatas = DB::table('active_user')->where('id_last_sync', 3)->get();
+
+        $computedMinecraftDatas = [];
+        foreach ($minecraftDatas as $key => $value) {
+            $computedMinecraftDatas[] = $value->username;
+        }
+
+        $computedDiscordDatas = [];
+        foreach ($discordDatas as $key => $value) {
+            $computedDiscordDatas[] = $value->username;
+        }
+
+        $discordDatasLeft = DB::table('active_user')->where('id_last_sync', 3)->whereNotIn('username', $computedMinecraftDatas)->get();
+        $discordDatasJoin = DB::table('active_user')->where('id_last_sync', 1)->whereNotIn('username', $computedDiscordDatas)->get();
+
+        $computedDiscordDatasLeft = [];
+        foreach ($discordDatasLeft as $key => $value) {
+            $computedDiscordDatasLeft[] = $value->username;
+        }
+
+        $computedDiscordDatasJoin = [];
+        foreach ($discordDatasJoin as $key => $value) {
+            $computedDiscordDatasJoin[] = $value->username;
+        }
+
+        $newPlayers = [];
+        foreach($computedMinecraftDatas as $player) {
+            $newPlayers[] = [
+                'id_last_sync' => 3,
+                'username' => $player,
+            ];
+        }
+
+        DB::table('active_user')->where('id_last_sync', 3)->delete();
+        DB::table('active_user')->insert($newPlayers);
+
+        $string = '';
+        
+        $string .= 'Server Time: ';
+        $string .= date('d-m-Y H:i:s');
+        $string .= "\n\n";
+
+        if (count($computedDiscordDatasJoin) > 0) {
+            $string .= implode(', ', $computedDiscordDatasJoin);
+            $string .= ' join the game.';
+            $string .= "\n";
+        }
+
+        if (count($computedDiscordDatasLeft) > 0) {
+            $string .= implode(', ', $computedDiscordDatasLeft);
+            $string .= ' left the game.';
+            $string .= "\n";
+        }
+
+        $string .= "\n" . 'Active Users' . "\n";
+        $string .= '====================' . "\n";
+        
+        foreach ($minecraftDatas as $key => $value) {
+            $string .= $value->username;
+            $string .= "\n";   
+        }
+
+        $client = new Client([
+            // Base URI is used with relative requests
+            // 'base_uri' => 'http://httpbin.org',
+            // You can set any number of default request options.
+            'timeout'  => 2.0,
+        ]);
+
+        if (
+            count($computedDiscordDatasLeft) == 0
+            && count($computedDiscordDatasJoin) == 0
+            ) {
+                return response()->json(['nothingToDo' => 'stillTheSame'], 200);
+            } else {
+                try {
+                    $botToken = env('DISCORD_API', 'fill');
+                    $channelId = env('DISCORD_CHANNEL_ID', 'fill');
+        
+                    $discord = new DiscordClient(['token' => $botToken]); // Token is required
+        
+                    $res = $discord->channel->createMessage(['channel.id' => (int) $channelId, 'content' => $string]);
+                } catch(\Exception $e) {
+                    return response()->json(['msg' => $e->getMessage()], 500);
+                }
+            }
     }
 
     function syncTelegram()
